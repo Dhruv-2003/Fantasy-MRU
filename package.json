@@ -7,11 +7,12 @@
     "test": "mocha --require ts-node/register src/**/*.test.ts"
   },
   "dependencies": {
-    "@stackr/sdk": "latest",
+    "@stackr/sdk": "beta",
     "ethers": "^6.7.1",
     "express": "^4.18.2",
     "merkletreejs": "^0.3.11",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "viem": "^2.14.1"
   },
   "devDependencies": {
     "@types/chai": "^4.3.13",

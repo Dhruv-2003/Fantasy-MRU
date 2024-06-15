@@ -1,27 +1,27 @@
 import { ActionSchema, SolidityType } from "@stackr/sdk";
 
-// utility function to start the Tournament
-function generateSchemaFromBase(name: string) {
-  return new ActionSchema(name, {
-    to: SolidityType.ADDRESS,
-    from: SolidityType.ADDRESS,
-    amount: SolidityType.UINT,
-    nonce: SolidityType.UINT,
-  });
-}
-
-// createAccountSchema is a schema for creating an account
-const createAccountSchema = new ActionSchema("createAccount", {
-  address: SolidityType.ADDRESS,
+// to start the Tournament
+const startTournamentSchema = new ActionSchema("startTournament", {
+  timestamp: SolidityType.UINT,
 });
 
-// collection of all the transfer actions
+// to close the Tournament
+const closeTournamentSchema = new ActionSchema("closeTournament", {
+  timestamp: SolidityType.UINT,
+});
+
+// to trade
+const tradeSchema = new ActionSchema("trade", {
+  buyer: SolidityType.ADDRESS,
+  price: SolidityType.UINT,
+  playerId: SolidityType.UINT,
+  operation: SolidityType.STRING,
+});
+
+// collection of all the actions
 // that can be performed on the rollup
 export const schemas = {
-  create: createAccountSchema,
-  transfer: generateSchemaFromBase("transfer"),
-  transferFrom: generateSchemaFromBase("transferFrom"),
-  mint: generateSchemaFromBase("mint"),
-  burn: generateSchemaFromBase("burn"),
-  approve: generateSchemaFromBase("approve"),
+  startTournamentSchema,
+  closeTournamentSchema,
+  tradeSchema,
 };

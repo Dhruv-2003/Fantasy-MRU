@@ -1,171 +1,153 @@
-import { Transitions, STF } from "@stackr/sdk/machine";
-import { ERC20, BetterMerkleTree as StateWrapper } from "./state";
+import { Transitions, STF, Hooks, Hook } from "@stackr/sdk/machine";
+import { TradeState, TradeStateTree as StateWrapper } from "./state";
 
 // --------- Utilities ---------
-const findIndexOfAccount = (state: StateWrapper, address: string) => {
-  return state.leaves.findIndex((leaf) => leaf.address === address);
+const getTradeLogsForAddress = (address: string, state: StateWrapper) => {
+  return state.tradeLogs.filter((log) => log.buyer == address);
 };
 
-type CreateInput = {
-  address: string;
+// --------- Input Types ---------
+type StartTournamentInput = {
+  timestamp: number;
 };
 
-type BaseActionInput = {
-  from: string;
-  to: string;
-  amount: number;
-  nonce: number;
+type TradeActionInput = {
+  buyer: string;
+  playerId: number;
+  operation: "buy" | "sell";
+  timestamp: number;
 };
 
 // --------- State Transition Handlers ---------
-const create: STF<ERC20, CreateInput> = {
+const startTournament: STF<TradeState, StartTournamentInput> = {
+  handler: ({ inputs, state, emit }) => {
+    state;
+    const { timestamp } = inputs;
+    if (state.hasTournamentStarted == true) {
+      throw new Error("Tournament Already started");
+    }
+    emit({ name: "TournamentStarted", value: timestamp });
+    state.hasTournamentStarted = true;
+    state.tournamentStartTime = timestamp;
+    return state;
+  },
+};
+
+const closeTournament: STF<TradeState, StartTournamentInput> = {
+  handler: ({ inputs, state, emit }) => {
+    state;
+    const { timestamp } = inputs;
+    if (
+      state.hasTournamentClosed == true &&
+      state.hasTournamentStarted == false
+    ) {
+      throw new Error("Tournament Already closed or not started");
+    }
+    emit({ name: "TournamentClosed", value: timestamp });
+    state.hasTournamentClosed = true;
+    return state;
+  },
+};
+
+const trade: STF<TradeState, TradeActionInput> = {
   handler: ({ inputs, state }) => {
-    const { address } = inputs;
-    if (state.leaves.find((leaf) => leaf.address === address)) {
-      throw new Error("Account already exists");
-    }
-    state.leaves.push({
-      address,
-      balance: 0,
-      nonce: 0,
-      allowances: [],
-    });
-    return state;
-  },
-};
+    const { buyer, playerId, operation, timestamp } = inputs;
 
-const mint: STF<ERC20, BaseActionInput> = {
-  handler: ({ inputs, state }) => {
-    const { to, amount, nonce } = inputs;
+    const tradeLogs = getTradeLogsForAddress(buyer, state);
 
-    const index = findIndexOfAccount(state, to);
-
-    if (nonce - state.leaves[index].nonce !== 1) {
-      throw new Error("Invalid nonce");
+    // check if the tournament is closed
+    if (state.hasTournamentClosed) {
+      throw new Error("Tournament is closed");
     }
 
-    state.leaves[index].nonce += 1;
-    state.leaves[index].balance += amount;
-    return state;
-  },
-};
-
-const burn: STF<ERC20, BaseActionInput> = {
-  handler: ({ inputs, state, msgSender }) => {
-    const { from, amount, nonce } = inputs;
-
-    const index = findIndexOfAccount(state, from);
-
-    if (state.leaves[index].address !== msgSender) {
-      throw new Error("Unauthorized");
-    }
-
-    if (nonce - state.leaves[index].nonce !== 1) {
-      throw new Error("Invalid nonce");
-    }
-
-    state.leaves[index].nonce += 1;
-    state.leaves[index].balance -= amount;
-    return state;
-  },
-};
-
-const transfer: STF<ERC20, BaseActionInput> = {
-  handler: ({ inputs, state, msgSender }) => {
-    const { to, from, amount, nonce } = inputs;
-
-    const fromIndex = findIndexOfAccount(state, from);
-    const toIndex = findIndexOfAccount(state, to);
-
-    // check if the sender is the owner of the account
-    if (state.leaves[fromIndex]?.address !== msgSender) {
-      throw new Error("Unauthorized");
-    }
-
-    // check if the nonce is valid
-    if (nonce - state.leaves[fromIndex].nonce !== 1) {
-      throw new Error("Invalid nonce");
-    }
-
-    // check if the sender has enough balance
-    if (state.leaves[fromIndex]?.balance < inputs.amount) {
-      throw new Error("Insufficient funds");
-    }
-
-    // check if to account exists
-    if (!state.leaves[toIndex]) {
-      throw new Error("Account does not exist");
-    }
-
-    state.leaves[fromIndex].nonce += 1;
-    state.leaves[fromIndex].balance -= amount;
-    state.leaves[toIndex].balance += amount;
-    return state;
-  },
-};
-
-const approve: STF<ERC20, BaseActionInput> = {
-  handler: ({ inputs, state, msgSender }) => {
-    const { from, to, amount, nonce } = inputs;
-
-    const index = findIndexOfAccount(state, from);
-    if (state.leaves[index].address !== msgSender) {
-      throw new Error("Unauthorized");
-    }
-    if (nonce - state.leaves[index].nonce !== 1) {
-      throw new Error("Invalid nonce");
-    }
-
-    state.leaves[index].nonce += 1;
-    state.leaves[index].allowances.push({ address: to, amount });
-    return state;
-  },
-};
-
-const transferFrom: STF<ERC20, BaseActionInput> = {
-  handler: ({ inputs, state, msgSender }) => {
-    const { to, from, amount, nonce } = inputs;
-
-    // check if the msgSender has enough allowance from the owner
-    const toIndex = findIndexOfAccount(state, to);
-    const fromIndex = findIndexOfAccount(state, from);
-
-    if (nonce - state.leaves[fromIndex].nonce !== 1) {
-      throw new Error("Invalid nonce");
-    }
-
-    const allowance = state.leaves[fromIndex].allowances.find(
-      (allowance) => allowance.address === msgSender
-    );
-    if (!allowance || allowance.amount < inputs.amount) {
-      throw new Error("Insufficient allowance");
-    }
-
-    // check if the sender has enough balance
-    if (state.leaves[fromIndex].balance < inputs.amount) {
-      throw new Error("Insufficient funds");
-    }
-
-    state.leaves[fromIndex].nonce += 1;
-    state.leaves[fromIndex].balance -= amount;
-    state.leaves[toIndex].balance += amount;
-    state.leaves[fromIndex].allowances = state.leaves[fromIndex].allowances.map(
-      (allowance) => {
-        if (allowance.address === msgSender) {
-          allowance.amount -= amount;
-        }
-        return allowance;
+    // check if the tournamet has started
+    if (state.hasTournamentStarted) {
+      // check if the user has done less than 10 trades after it started
+      const tradeLogsInTrunament = tradeLogs.filter(
+        (log) => log.timestamp >= state.tournamentStartTime
+      );
+      if (tradeLogsInTrunament.length >= 10) {
+        throw new Error("Max trades limit reached");
       }
-    );
+    }
+
+    // perform action for the operation
+    if (operation == "buy") {
+      // check balance of the user
+      if (state.walletBalances[buyer] < state.currentPrices[playerId]) {
+        throw new Error("Insufficient balance");
+      }
+
+      // check is user hasn't already bought the player
+      const buyLogsPlayer = tradeLogs.filter((log) => log.playerId == playerId);
+      if (buyLogsPlayer.length > 0) {
+        // check if the last record is buy for this player or not
+        if (buyLogsPlayer[buyLogsPlayer.length - 1].operation == "buy") {
+          throw new Error("Player already bought");
+        }
+      }
+
+      // update the user balance
+      state.walletBalances[buyer] -= state.currentPrices[playerId];
+    } else if (operation == "sell") {
+      // check that user should have this player to sell
+      const buyLogsPlayer = tradeLogs.filter((log) => log.playerId == playerId);
+      if (buyLogsPlayer.length == 0) {
+        throw new Error("Player not bought");
+      } else {
+        // check if the last record is sell for this player or not
+        if (buyLogsPlayer[buyLogsPlayer.length - 1].operation == "sell") {
+          throw new Error("Player already sold");
+        }
+      }
+
+      // update the user balance & credit the amount back to the user profile
+      state.walletBalances[buyer] += state.currentPrices[playerId];
+    } else {
+      throw new Error("Invalid operation");
+    }
+
     return state;
   },
 };
 
-export const transitions: Transitions<ERC20> = {
-  create,
-  mint,
-  burn,
-  transfer,
-  approve,
-  transferFrom,
+export const transitions: Transitions<TradeState> = {
+  startTournament,
+  closeTournament,
+  trade,
 };
+
+// --------- Hooks ---------
+
+// Updates the current Price according to the match Score
+
+// Updates the user balance before and after every trade
+
+const updateUserBalances: Hook<TradeState> = {
+  handler: ({ state }) => {
+    // update the user balance for all the wallets
+    // user Balance -> Wallet Balance + Portfolio worth
+
+    const walletBalances = state.walletBalances;
+    const currentPrices = state.currentPrices;
+    const tradeLogs = state.tradeLogs;
+
+    Object.entries(walletBalances).forEach(([address, balance]) => {
+      let userBalance = balance;
+      tradeLogs
+        .filter((log) => log.buyer == address)
+        .forEach((log) => {
+          if (log.operation == "buy") {
+            userBalance -= currentPrices[log.playerId];
+          } else {
+            userBalance += currentPrices[log.playerId];
+          }
+        });
+      state.userBalances[address] = userBalance;
+    });
+
+    return state;
+  },
+};
+
+export const hooks: Hooks<TradeState> = {};

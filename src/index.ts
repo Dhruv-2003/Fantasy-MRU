@@ -4,13 +4,13 @@ import { ActionEvents } from "@stackr/sdk";
 import { Playground } from "@stackr/sdk/plugins";
 import dotenv from "dotenv";
 import { schemas } from "./actions.ts";
-import { ERC20Machine, mru } from "./erc20.ts";
+import { TradeStateMachine, mru } from "./trade.ts";
 import { transitions } from "./transitions.ts";
 
 console.log("Starting server...");
 dotenv.config();
 
-const erc20Machine = mru.stateMachines.get<ERC20Machine>("erc-20");
+const tradeStateMachine = mru.stateMachines.get<TradeStateMachine>("trade");
 
 const app = express();
 app.use(express.json());
@@ -81,7 +81,7 @@ app.post("/:reducerName", async (req: Request, res: Response) => {
 });
 
 app.get("/", (_req: Request, res: Response) => {
-  return res.send({ state: erc20Machine?.state });
+  return res.send({ state: tradeStateMachine?.state });
 });
 
 app.listen(3000, () => {

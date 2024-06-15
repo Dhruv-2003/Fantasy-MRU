@@ -7,10 +7,13 @@ export type TradeLogs = {
   price: number;
   playerId: number;
   operation: "buy" | "sell";
+  timestamp: number;
 };
 
 export type TradeStateVariable = {
   hasTournamentStarted: boolean;
+  tournamentStartTime: number;
+  hasTournamentClosed: boolean;
   operator: string;
   currentPrices: Record<number, number>;
   tradeLogs: TradeLogs[];
@@ -20,6 +23,8 @@ export type TradeStateVariable = {
 
 export class TradeStateTree {
   public hasTournamentStarted: boolean;
+  public tournamentStartTime: number;
+  public hasTournamentClosed: boolean;
   public operator: string;
 
   public tradeMerkleTree: MerkleTree;
@@ -54,14 +59,22 @@ export class TradeStateTree {
     this.userBalances = rawState.userBalances;
 
     this.hasTournamentStarted = rawState.hasTournamentStarted;
+    this.tournamentStartTime = rawState.tournamentStartTime;
+    this.hasTournamentClosed = rawState.hasTournamentClosed;
     this.operator = rawState.operator;
   }
 
   createTree(rawState: TradeStateVariable) {
     const hashedTradeLeaves = rawState.tradeLogs.map((tradeLog) => {
       return solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "string"],
-        [tradeLog.buyer, tradeLog.price, tradeLog.playerId, tradeLog.operation]
+        ["address", "uint256", "uint256", "string", "uint256"],
+        [
+          tradeLog.buyer,
+          tradeLog.price,
+          tradeLog.playerId,
+          tradeLog.operation,
+          tradeLog.timestamp,
+        ]
       );
     });
     const tradeLogMerkelTree = new MerkleTree(hashedTradeLeaves, keccak256, {
@@ -146,6 +159,8 @@ export class TradeState extends State<TradeStateVariable, TradeStateTree> {
       unwrap: (wrappedState: TradeStateTree) => {
         return {
           hasTournamentStarted: wrappedState.hasTournamentStarted,
+          tournamentStartTime: wrappedState.tournamentStartTime,
+          hasTournamentClosed: wrappedState.hasTournamentClosed,
           operator: wrappedState.operator,
           currentPrices: wrappedState.currentPrices,
           tradeLogs: wrappedState.tradeLogs,
@@ -166,6 +181,8 @@ export class TradeState extends State<TradeStateVariable, TradeStateTree> {
         wrappedState.walletBalancesTree.getHexRoot(),
         wrappedState.userBalancesTree.getHexRoot(),
         keccak256(wrappedState.hasTournamentStarted.toString()),
+        keccak256(wrappedState.tournamentStartTime.toString()),
+        keccak256(wrappedState.hasTournamentClosed.toString()),
         keccak256(wrappedState.operator),
       ],
       keccak256,
