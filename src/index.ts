@@ -84,6 +84,76 @@ app.get("/", (_req: Request, res: Response) => {
   return res.send({ state: tradeStateMachine?.state });
 });
 
+app.get("/balance/:address", (_req: Request, res: Response) => {
+  const { address } = _req.params;
+  const currentState = tradeStateMachine?.state;
+  if (!currentState) {
+    res.status(400).send({ message: "No State found" });
+    return;
+  }
+  const balance = currentState.walletBalances[address];
+
+  return res.send({ address: address, balance: balance });
+});
+
+app.get("/portfolio/:address", (_req: Request, res: Response) => {
+  const { address } = _req.params;
+  const currentState = tradeStateMachine?.state;
+  if (!currentState) {
+    res.status(400).send({ message: "No State found" });
+    return;
+  }
+  const balance = currentState.userBalances[address];
+
+  return res.send({ address: address, balance: balance });
+});
+
+app.get("/trades/:address", (_req: Request, res: Response) => {
+  const { address } = _req.params;
+  const currentState = tradeStateMachine?.state;
+  if (!currentState) {
+    res.status(400).send({ message: "No State found" });
+    return;
+  }
+  const totalTradesforAddress = currentState.tradeLogs.filter(
+    (trade) => trade.buyer == address
+  );
+  return res.send({ address: address, trades: totalTradesforAddress });
+});
+
+app.get("/players/:address", (_req: Request, res: Response) => {
+  const { address } = _req.params;
+  const currentState = tradeStateMachine?.state;
+  if (!currentState) {
+    res.status(400).send({ message: "No State found" });
+    return;
+  }
+  let playersForAddress: any[] = [];
+
+  // check all the trades , select the ones which buyers has bought, and still not sold
+  const buyLogsForAddress = tradeStateMachine?.state.tradeLogs.filter(
+    (trade) => trade.buyer === address && trade.operation === "buy"
+  );
+
+  // check if for these players user hasn't sold them after buying them
+  const playersToSell = buyLogsForAddress?.filter((buytrade) => {
+    const sellLog = tradeStateMachine?.state.tradeLogs.find(
+      (sellTrade) =>
+        sellTrade.buyer === address &&
+        sellTrade.operation === "sell" &&
+        sellTrade.playerId === buytrade.playerId &&
+        sellTrade.timestamp > buytrade.timestamp
+    );
+    return !sellLog;
+  });
+
+  playersForAddress = playersToSell
+    ? playersToSell.map((trade) => trade.playerId)
+    : [];
+
+  return res.send({ address: address, trades: playersForAddress });
+});
+
 app.listen(3000, () => {
   console.log("listening on port 3000");
 });

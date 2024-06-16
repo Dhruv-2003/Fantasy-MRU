@@ -13,9 +13,9 @@ const closeTournamentSchema = new ActionSchema("closeTournament", {
 // to trade
 const tradeSchema = new ActionSchema("trade", {
   buyer: SolidityType.ADDRESS,
-  price: SolidityType.UINT,
-  playerId: SolidityType.UINT,
+  playerId: SolidityType.STRING,
   operation: SolidityType.STRING,
+  timestamp: SolidityType.UINT,
 });
 
 // collection of all the actions

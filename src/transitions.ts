@@ -13,19 +13,25 @@ type StartTournamentInput = {
 
 type TradeActionInput = {
   buyer: string;
-  playerId: number;
+  playerId: string;
   operation: "buy" | "sell";
   timestamp: number;
 };
 
 // --------- State Transition Handlers ---------
 const startTournament: STF<TradeState, StartTournamentInput> = {
-  handler: ({ inputs, state, emit }) => {
+  handler: ({ inputs, state, emit, msgSender }) => {
     state;
     const { timestamp } = inputs;
     if (state.hasTournamentStarted == true) {
       throw new Error("Tournament Already started");
     }
+
+    // check for operator
+    if (msgSender != state.operator) {
+      throw new Error("Only operator can start the tournament");
+    }
+
     emit({ name: "TournamentStarted", value: timestamp });
     state.hasTournamentStarted = true;
     state.tournamentStartTime = timestamp;
@@ -34,7 +40,7 @@ const startTournament: STF<TradeState, StartTournamentInput> = {
 };
 
 const closeTournament: STF<TradeState, StartTournamentInput> = {
-  handler: ({ inputs, state, emit }) => {
+  handler: ({ inputs, state, emit, msgSender }) => {
     state;
     const { timestamp } = inputs;
     if (
@@ -43,6 +49,12 @@ const closeTournament: STF<TradeState, StartTournamentInput> = {
     ) {
       throw new Error("Tournament Already closed or not started");
     }
+
+    // check for operator
+    if (msgSender != state.operator) {
+      throw new Error("Only operator can start the tournament");
+    }
+
     emit({ name: "TournamentClosed", value: timestamp });
     state.hasTournamentClosed = true;
     return state;
@@ -54,6 +66,13 @@ const trade: STF<TradeState, TradeActionInput> = {
     const { buyer, playerId, operation, timestamp } = inputs;
 
     const tradeLogs = getTradeLogsForAddress(buyer, state);
+
+    // atleast check they are whitelisted to play in the tournament
+    if (state.walletBalances[buyer] == undefined) {
+      throw new Error(
+        "User not whitelisted to play in the tournament or No Balance"
+      );
+    }
 
     // check if the tournament is closed
     if (state.hasTournamentClosed) {
@@ -69,6 +88,8 @@ const trade: STF<TradeState, TradeActionInput> = {
       if (tradeLogsInTrunament.length >= 10) {
         throw new Error("Max trades limit reached");
       }
+    } else {
+      throw new Error("Tournament has not started yet");
     }
 
     // perform action for the operation
@@ -107,6 +128,15 @@ const trade: STF<TradeState, TradeActionInput> = {
       throw new Error("Invalid operation");
     }
 
+    // add the trade log
+    state.tradeLogs.push({
+      buyer,
+      playerId,
+      operation,
+      timestamp,
+      price: state.currentPrices[playerId],
+    });
+
     return state;
   },
 };
@@ -120,9 +150,20 @@ export const transitions: Transitions<TradeState> = {
 // --------- Hooks ---------
 
 // Updates the current Price according to the match Score
+const updateCurrentPrice: Hook<TradeState> = {
+  handler: ({ state }) => {
+    // update the current price of all the players
+    // current Price -> 100 - matchScore
+    const matchScore = 50;
+    // Object.entries(state.currentPrices).forEach(([playerId, price]) => {
+    //   state.currentPrices[playerId] = 100 - matchScore;
+    // });
+
+    return state;
+  },
+};
 
 // Updates the user balance before and after every trade
-
 const updateUserBalances: Hook<TradeState> = {
   handler: ({ state }) => {
     // update the user balance for all the wallets
@@ -137,10 +178,12 @@ const updateUserBalances: Hook<TradeState> = {
       tradeLogs
         .filter((log) => log.buyer == address)
         .forEach((log) => {
+          // check if the user has bought the player and not sold it , then add the player worth to the user balance
           if (log.operation == "buy") {
-            userBalance -= currentPrices[log.playerId];
-          } else {
             userBalance += currentPrices[log.playerId];
+          } else if (log.operation == "sell") {
+            // check if the user has sold the player and not bought it , then subtract the player worth from the user balance
+            userBalance -= currentPrices[log.playerId];
           }
         });
       state.userBalances[address] = userBalance;
@@ -150,4 +193,6 @@ const updateUserBalances: Hook<TradeState> = {
   },
 };
 
-export const hooks: Hooks<TradeState> = {};
+export const hooks: Hooks<TradeState> = {
+  updateUserBalances,
+};

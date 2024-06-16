@@ -1,6 +1,6 @@
 import { StateMachine } from "@stackr/sdk/machine";
 import genesisState from "../genesis-state.json";
-import { transitions } from "./transitions";
+import { hooks, transitions } from "./transitions";
 import { TradeState } from "./state";
 
 const STATE_MACHINES = {
@@ -11,6 +11,7 @@ const tradeStateMachine = new StateMachine({
   id: STATE_MACHINES.TradeState,
   stateClass: TradeState,
   initialState: genesisState.state,
+  hooks: hooks,
   on: transitions,
 });
 

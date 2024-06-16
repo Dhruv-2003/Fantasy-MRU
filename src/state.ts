@@ -5,7 +5,7 @@ import { MerkleTree } from "merkletreejs";
 export type TradeLogs = {
   buyer: string;
   price: number;
-  playerId: number;
+  playerId: string;
   operation: "buy" | "sell";
   timestamp: number;
 };
@@ -15,7 +15,7 @@ export type TradeStateVariable = {
   tournamentStartTime: number;
   hasTournamentClosed: boolean;
   operator: string;
-  currentPrices: Record<number, number>;
+  currentPrices: Record<string, number>;
   tradeLogs: TradeLogs[];
   walletBalances: Record<string, number>; // just credits
   userBalances: Record<string, number>; // walletBalance + worth of the player in portfolio
@@ -31,7 +31,7 @@ export class TradeStateTree {
   public tradeLogs: TradeLogs[];
 
   public currentPricesTree: MerkleTree;
-  public currentPrices: Record<number, number>;
+  public currentPrices: Record<string, number>;
 
   public walletBalancesTree: MerkleTree;
   public walletBalances: Record<string, number>;
@@ -46,6 +46,7 @@ export class TradeStateTree {
       walletBalancesMerkelTree,
       userBalancesMerkelTree,
     } = this.createTree(rawState);
+
     this.tradeMerkleTree = tradeLogMerkelTree;
     this.tradeLogs = rawState.tradeLogs;
 
@@ -67,7 +68,7 @@ export class TradeStateTree {
   createTree(rawState: TradeStateVariable) {
     const hashedTradeLeaves = rawState.tradeLogs.map((tradeLog) => {
       return solidityPackedKeccak256(
-        ["address", "uint256", "uint256", "string", "uint256"],
+        ["address", "uint256", "string", "string", "uint256"],
         [
           tradeLog.buyer,
           tradeLog.price,
@@ -86,7 +87,7 @@ export class TradeStateTree {
     const hashedCurrentPrices = Object.entries(rawState.currentPrices).map(
       ([playerId, price]) => {
         return solidityPackedKeccak256(
-          ["uint256", "uint256"],
+          ["string", "uint256"],
           [playerId, price]
         );
       }
@@ -180,9 +181,9 @@ export class TradeState extends State<TradeStateVariable, TradeStateTree> {
         wrappedState.currentPricesTree.getHexRoot(),
         wrappedState.walletBalancesTree.getHexRoot(),
         wrappedState.userBalancesTree.getHexRoot(),
-        keccak256(wrappedState.hasTournamentStarted.toString()),
-        keccak256(wrappedState.tournamentStartTime.toString()),
-        keccak256(wrappedState.hasTournamentClosed.toString()),
+        solidityPackedKeccak256(["bool"], [wrappedState.hasTournamentStarted]),
+        solidityPackedKeccak256(["uint"], [wrappedState.tournamentStartTime]),
+        solidityPackedKeccak256(["bool"], [wrappedState.hasTournamentClosed]),
         keccak256(wrappedState.operator),
       ],
       keccak256,

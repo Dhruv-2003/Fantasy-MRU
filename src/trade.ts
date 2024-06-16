@@ -19,6 +19,11 @@ const mru = await MicroRollup({
     closeTournament: schemas.closeTournamentSchema,
     trade: schemas.tradeSchema,
   },
+  blockHooks: {
+    pre: [],
+    post: ["updateUserBalances"],
+  },
+  isSandbox: true,
 });
 
 await mru.init();
