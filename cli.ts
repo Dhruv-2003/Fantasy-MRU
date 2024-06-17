@@ -260,8 +260,7 @@ const askAmount = async (action: Action): Promise<TradeArgs | {}> => {
       if (operation === "buy") {
         const allPlayers = Object.keys(tradeStateMachine?.state.currentPrices!);
 
-        // NOTE :  Only show the players to the user which he hasn't bought yet
-
+        // Only show the players to the user which he hasn't bought yet
         players = allPlayers.filter((player) => {
           return !playersForAddress.includes(player);
         });

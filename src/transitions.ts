@@ -88,8 +88,6 @@ const trade: STF<TradeState, TradeActionInput> = {
       if (tradeLogsInTrunament.length >= 10) {
         throw new Error("Max trades limit reached");
       }
-    } else {
-      throw new Error("Tournament has not started yet");
     }
 
     // perform action for the operation
